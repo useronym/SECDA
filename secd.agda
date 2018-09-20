@@ -1,11 +1,11 @@
 module secd where
 
-open import Data.Product
-open import Data.Vec
-open import Data.List
-open import Data.List.All
+open import Data.Product using (Σ; _×_; _,_)
+open import Data.Fin using (Fin; fromℕ; zero)
+open import Data.Vec using (Vec; [])
+open import Data.List using (List; []; [_]; _∷_; length) renaming (lookup to lookupˡ)
 open import Data.Nat using (ℕ; _≤_)
-open import Data.Integer using (ℤ)
+open import Data.Integer using (ℤ; +_)
 
 
 data Const : Set where
@@ -13,70 +13,85 @@ data Const : Set where
   int : ℤ → Const
   idx : ℕ → Const
 
-data Type : Set where
-  nilT intT idxT funT envT : Type
-  listT : Type → Type
+mutual
+  Env = List (List Type)
+
+  data Type : Set where
+    nilT intT idxT funT : Type
+    env : Env → Type
+    list : List Type → Type
+
+envIdx : Env → Set
+envIdx e = Σ (Fin (length e)) (λ x → Fin (length (lookupˡ e x)))
+
+lookup : (e : Env) → envIdx e → Type
+lookup e (x , y) = lookupˡ (lookupˡ e x) y
 
 typeof : Const → Type
 typeof nil     = nilT
 typeof (int x) = intT
 typeof (idx x) = idxT
 
-data Ins : Set where
-  nil ld ldc ldf ap : Ins
-  add : Ins
-  cc : Const → Ins
 
+Stack = List Type
+Dump  = List (Stack × Env)
 
-Stack   = List Type
-
-Env : ℕ → ℕ → Set
-Env x y = Vec (Vec Type y) x
-
-Control = List Ins
-
-Dump : ℕ → ℕ → Set -- TODO: fix
-Dump e1 e2 = List (Stack × Env e1 e2 × Control)
-
-record SECD {e₁ e₂ : ℕ} : Set where
-  constructor _#_#_#_
+record State : Set where
+  constructor _#_#_
   field
     s : Stack
-    e : Env e₁ e₂
-    c : Control
-    d : Dump e₁ e₂
+    e : Env
+    d : Dump
 
-newSECD : Control → SECD {0} {0}
-newSECD c = [] # [] # c # []
+infix 5 ⊢_↝_
+infixr 5 _>>_
+data ⊢_↝_ : State → State → Set where
+  _>>_ : ∀ {s e d s' e' d' s'' e'' d''}
+       → ⊢ s # e # d ↝ s' # e' # d'
+       → ⊢ s' # e' # d' ↝ s'' # e'' # d''
+       → ⊢ s # e # d ↝ s'' # e'' # d''
+  nil  : ∀ {s e d}
+       → ⊢ s # e # d ↝ (nilT ∷ s) # e # d
+  ldc  : ∀ {s e d}
+       → (const : Const)
+       → ⊢ s # e # d ↝ (typeof const ∷ s) # e # d
+  ld   : ∀ {s e d}
+       → (at : envIdx e)
+       → ⊢ s # e # d ↝ (lookup e at ∷ s) # e # d
+  ldf  : ∀ {s e d s' e' d' x}
+       → (f : ⊢ [] # e # d ↝ (x ∷ s') # e' # d')
+       → ⊢ s # e # d ↝ (funT ∷ env e ∷ s) # e # d
+  ap   : ∀ {s e e' d l}
+       → ⊢ (funT ∷ env e' ∷ list l ∷ s) # e # d ↝ [] # (l ∷ e') # ((s , e) ∷ d)
+  rtn  : ∀ {s e d s' e' x}
+       → ⊢ (x ∷ s') # e' # ((s , e) ∷ d) ↝ (x ∷ s) # e # d
+  add  : ∀ {s e d}
+       → ⊢ (intT ∷ intT ∷ s) # e # d ↝ (intT ∷ s) # e # d
 
-infix 10 ⊢_
-data ⊢_ {e₁ e₂} : SECD {e₁} {e₂} → Set where
-  stop : ∀ {s e d}
-       → ⊢ s # e # [] # d
-  tnil : ∀ {s e c d}
-       → ⊢ (nilT ∷ s) # e # c # d
-       → ⊢ s # e # (nil ∷ c) # d
-  tldc : ∀ {s e c d x}
-       → ⊢ (typeof x ∷ s) # e # c # d
-       → ⊢ s # e # (ldc ∷ cc x ∷ c) # d
-  tld  : ∀ {s e c d} {x y : ℕ} {_ : x ≤ e₁} {_ : y ≤ e₂}
-       → ⊢ (s) # e # c # d
-       → ⊢ s # e # (ld ∷ cc (idx x) ∷ cc (idx y) ∷ c) # d
-  tldf : ∀ {s e c d}
-       → ⊢ (funT ∷ envT ∷ s) # e # c # d
-       → ⊢ s # e # (ldf ∷ c) # d
---  tap  : ∀ {s e c d} {a : Type} {args : listT a}
---       → ⊢ [] # (args ∷ e) # c # ((s , e , c) ∷ d)
---       → ⊢ (funT ∷ envT ∷ args ∷ s) # e # (ap ∷ c) # d
-  tadd : ∀ {s e c d}
-       → ⊢ (intT ∷ s) # e # c # d
-       → ⊢ (intT ∷ intT ∷ s) # e # (add ∷ c) # d
+_⇒_ : List Type → Type → Set
+from ⇒ to = ∀ {s e e' d} → ⊢ [] # (from ∷ e') # (((s , e) ∷ d)) ↝ (to ∷ s) # e # d
 
-test : SECD
-test = newSECD
-  ( ldc ∷ cc (int (ℤ.pos 2))
-  ∷ ldc ∷ cc (int (ℤ.pos 3))
-  ∷ add ∷ [])
+fromNada : Type → Set
+fromNada t = ⊢ [] # [] # [] ↝ [ t ] # [] # []
 
-_ : ⊢ test
-_ = tldc (tldc (tadd stop))
+
+-- 2 + 3
+_ : fromNada intT
+_ =
+    ldc (int (+ 2))
+ >> ldc (int (+ 3))
+ >> add
+
+-- λx.x + 1
+inc : [ intT ] ⇒ intT
+inc =
+    ld (zero , zero)
+ >> ldc (int (+ 1))
+ >> add
+ >> rtn
+
+-- Apply 2 to the above.
+_ : fromNada intT
+_ = 
+    ldf {!!}
+ >> {!!}
