@@ -30,42 +30,41 @@ Stack = List Type
 Dump  = List (Stack × Env)
 
 record State : Set where
-  constructor _#_#_
+  constructor _#_
   field
     s : Stack
     e : Env
-    d : Dump
 
 infix 5 ⊢_↝_
 infixr 5 _>>_
 data ⊢_↝_ : State → State → Set where
-  _>>_ : ∀ {s e d s' e' d' s'' e'' d''}
-       → ⊢ s # e # d ↝ s' # e' # d'
-       → ⊢ s' # e' # d' ↝ s'' # e'' # d''
-       → ⊢ s # e # d ↝ s'' # e'' # d''
-  nil  : ∀ {s e d}
-       → ⊢ s # e # d ↝ (nilT ∷ s) # e # d
-  ldc  : ∀ {s e d}
+  _>>_ : ∀ {s e s' e' s'' e''}
+       → ⊢ s # e ↝ s' # e'
+       → ⊢ s' # e' ↝ s'' # e''
+       → ⊢ s # e ↝ s'' # e''
+  nil  : ∀ {s e}
+       → ⊢ s # e ↝ (nilT ∷ s) # e
+  ldc  : ∀ {s e}
        → (const : Const)
-       → ⊢ s # e # d ↝ (typeof const ∷ s) # e # d
-  ld   : ∀ {s e d}
+       → ⊢ s # e ↝ (typeof const ∷ s) # e
+  ld   : ∀ {s e}
        → (at : Fin (length e))
-       → ⊢ s # e # d ↝ (lookup e at ∷ s) # e # d
-  ldf  : ∀ {s e d s' e' d' d'' from to}
-       → (f : ⊢ [] # (from ∷ e) # d'' ↝ (to ∷ s') # e' # d')
-       → ⊢ s # e # d ↝ (funT from to ∷ env e ∷ s) # e # d
-  ap   : ∀ {s e e' d from to}
-       → ⊢ (from ∷ funT from to ∷ env e' ∷ s) # e # d ↝ [ to ] # e # d
-  rtn  : ∀ {s e d s' e' x}
-       → ⊢ (x ∷ s') # e' # ((s , e) ∷ d) ↝ (x ∷ s) # e # d
-  add  : ∀ {s e d}
-       → ⊢ (intT ∷ intT ∷ s) # e # d ↝ (intT ∷ s) # e # d
+       → ⊢ s # e ↝ (lookup e at ∷ s) # e
+  ldf  : ∀ {s e s' e' from to}
+       → (f : ⊢ [] # (from ∷ e) ↝ (to ∷ s') # e')
+       → ⊢ s # e ↝ (funT from to ∷ env e ∷ s) # e
+  ap   : ∀ {s e e' from to}
+       → ⊢ (from ∷ funT from to ∷ env e' ∷ s) # e ↝ [ to ] # e
+  rtn  : ∀ {s e s' e' x}
+       → ⊢ (x ∷ s') # e' ↝ (x ∷ s) # e
+  add  : ∀ {s e}
+       → ⊢ (intT ∷ intT ∷ s) # e ↝ (intT ∷ s) # e
 
 _⇒_ : Type → Type → Set
-from ⇒ to = ∀ {s e d e'} → ⊢ [] # (from ∷ e') # (((s , e) ∷ d)) ↝ (to ∷ s) # e # d
+from ⇒ to = ∀ {s e e'} → ⊢ [] # (from ∷ e') ↝ (to ∷ s) # e
 
 fromNada : Type → Set
-fromNada t = ⊢ [] # [] # [] ↝ [ t ] # [] # []
+fromNada t = ⊢ [] # [] ↝ [ t ] # []
 
 -- 2 + 3
 _ : fromNada intT
