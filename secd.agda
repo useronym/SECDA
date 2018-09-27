@@ -5,14 +5,16 @@ open import Data.List using (List; []; [_]; _∷_; length; lookup)
 open import Data.Integer using (ℤ; +_)
 
 
+-- Type of atomic constants. These can be loaded directly from a single instruction.
 data Const : Set where
-  nil : Const
   true false : Const
   int : ℤ → Const
 
 mutual
+  -- Environment stores the types of bound variables.
   Env = List Type
 
+  -- Types that our machine recognizes.
   data Type : Set where
     intT boolT : Type
     pairT : Type → Type → Type
@@ -20,79 +22,107 @@ mutual
     envT : Env → Type
     listT : Type → Type
 
+-- Closure is a function together with a context.
 closureT : Type → Type → Env → Type
 closureT a b env = pairT (funT a b) (envT env)
 
+-- Assignment of types to constants.
 typeof : Const → Type
-typeof nil     = listT intT --TODO: fix!!!
 typeof true    = boolT
 typeof false   = boolT
 typeof (int x) = intT
 
+-- Stack stores the types of values on the machine's stack.
 Stack = List Type
---Dump  = List (Stack × Env)
 
+-- Special kind of closure we use to allow recursive calls.
+data Closure : Set where
+  mkClosure : Type → Type → Env → Closure
+
+-- Boilerplate.
+mkFrom : Closure → Type
+mkFrom (mkClosure from _ _) = from
+mkTo : Closure → Type
+mkTo (mkClosure _ to _) = to
+mkEnv : Closure → Env
+mkEnv (mkClosure _ _ env) = env
+
+-- This is pretty much the call stack, allowing us to make recursive calls.
+FunDump = List Closure
+
+-- A state of our machine.
 record State : Set where
-  constructor _#_
+  constructor _#_#_
   field
     s : Stack
     e : Env
+    f : FunDump
 
+-- The typing relation.
 infix 5 ⊢_↝_
 infixr 5 _>>_
 data ⊢_↝_ : State → State → Set where
-  _>>_ : ∀ {s e s' e' s'' e''}
-       → ⊢ s # e ↝ s' # e'
-       → ⊢ s' # e' ↝ s'' # e''
-       → ⊢ s # e ↝ s'' # e''
-  nil  : ∀ {s e a}
-       → ⊢ s # e ↝ (listT a ∷ s) # e
-  ldc  : ∀ {s e}
+  -- Composition of instructions.
+  _>>_ : ∀ {s₁ s₂ s₃ e₁ e₂ e₃ f₁ f₂ f₃}
+       → ⊢ s₁ # e₁ # f₁ ↝ s₂ # e₂ # f₂
+       → ⊢ s₂ # e₂ # f₂ ↝ s₃ # e₃ # f₃
+       → ⊢ s₁ # e₁ # f₁ ↝ s₃ # e₃ # f₃
+  ldf  : ∀ {s e f from to}
+       → (⊢ [] # (from ∷ e) # (mkClosure from to e ∷ f) ↝ [ to ] # [] # f)
+       → ⊢ s # e # f ↝ (closureT from to e ∷ s) # e # f
+  lett : ∀ {s e f x}
+       → ⊢ (x ∷ s) # e # f ↝ s # (x ∷ e) # f
+  ap   : ∀ {s e e' f from to}
+       → ⊢ (from ∷ closureT from to e' ∷ s) # e # f ↝ (to ∷ s) # e # f
+  tc   : ∀ {s e e' f from to}
+       → (at : Fin (length f))
+       → ⊢ (mkFrom (lookup f at) ∷ s) # e # f ↝ (mkTo (lookup f at) ∷ s) # e # (mkClosure from to e' ∷ f)
+  rtn  : ∀ {s e e' a b f x}
+       → ⊢ (b ∷ s) # e # (mkClosure a b e' ∷ f) ↝ [ x ] # [] # f
+  nil  : ∀ {s e f a}
+       → ⊢ s # e # f ↝ (listT a ∷ s) # e # f
+  ldc  : ∀ {s e f}
        → (const : Const)
-       → ⊢ s # e ↝ (typeof const ∷ s) # e
-  ld   : ∀ {s e}
+       → ⊢ s # e # f ↝ (typeof const ∷ s) # e # f
+  ld   : ∀ {s e f}
        → (at : Fin (length e))
-       → ⊢ s # e ↝ (lookup e at ∷ s) # e
-  ldf  : ∀ {s e from to}
-       → (f : ⊢ [] # (from ∷ e) ↝ [ to ] # [])
-       → ⊢ s # e ↝ (closureT from to e ∷ s) # e
-  ap   : ∀ {s e e' from to}
-       → ⊢ (from ∷ closureT from to e' ∷ s) # e ↝ [ to ] # e
-  rtn  : ∀ {s e x}
-       → ⊢ (x ∷ s) # e ↝ [ x ] # []
-  cons : ∀ {s e a}
-       → ⊢ (a ∷ listT a ∷ s) # e ↝ (listT a ∷ s) # e
-  head : ∀ {s e a}
-       → ⊢ (listT a ∷ s) # e ↝ (a ∷ s) # e
-  tail : ∀ {s e a}
-       → ⊢ (listT a ∷ s) # e ↝ (listT a ∷ s) # e
-  pair : ∀ {s e a b}
-       → ⊢ (a ∷ b ∷ s) # e ↝ (pairT a b ∷ s) # e
-  fst  : ∀ {s e a b}
-       → ⊢ (pairT a b ∷ s) # e ↝ (a ∷ s) # e
-  snd  : ∀ {s e a b}
-       → ⊢ (pairT a b ∷ s) # e ↝ (b ∷ s) # e
-  add  : ∀ {s e}
-       → ⊢ (intT ∷ intT ∷ s) # e ↝ (intT ∷ s) # e
-  nil? : ∀ {s e a}
-       → ⊢ (listT a ∷ s) # e ↝ (boolT ∷ s) # e
-  not  : ∀ {s e}
-       → ⊢ (boolT ∷ s) # e ↝ (boolT ∷ s) # e
-  if   : ∀ {s s' e e' x}
-       → ⊢ s # e ↝ s' # e'
-       → ⊢ s # e ↝ s' # e'
-       → ⊢ (x ∷ s) # e ↝ s' # e'
+       → ⊢ s # e # f ↝ (lookup e at ∷ s) # e # f
+  flip : ∀ {s e f a b}
+       → ⊢ (a ∷ b ∷ s) # e # f ↝ (b ∷ a ∷ s) # e # f
+  cons : ∀ {s e f a}
+       → ⊢ (a ∷ listT a ∷ s) # e # f ↝ (listT a ∷ s) # e # f
+  head : ∀ {s e f a}
+       → ⊢ (listT a ∷ s) # e # f ↝ (a ∷ s) # e # f
+  tail : ∀ {s e f a}
+       → ⊢ (listT a ∷ s) # e # f ↝ (listT a ∷ s) # e # f
+  pair : ∀ {s e f a b}
+       → ⊢ (a ∷ b ∷ s) # e # f ↝ (pairT a b ∷ s) # e # f
+  fst  : ∀ {s e f a b}
+       → ⊢ (pairT a b ∷ s) # e # f ↝ (a ∷ s) # e # f
+  snd  : ∀ {s e f a b}
+       → ⊢ (pairT a b ∷ s) # e # f ↝ (b ∷ s) # e # f
+  add  : ∀ {s e f}
+       → ⊢ (intT ∷ intT ∷ s) # e # f ↝ (intT ∷ s) # e # f
+  nil? : ∀ {s e f a}
+       → ⊢ (listT a ∷ s) # e # f ↝ (boolT ∷ s) # e # f
+  not  : ∀ {s e f}
+       → ⊢ (boolT ∷ s) # e # f ↝ (boolT ∷ s) # e # f
+  if   : ∀ {s s' e e' f f' x}
+       → ⊢ s # e # f ↝ s' # e' # f'
+       → ⊢ s # e # f ↝ s' # e' # f'
+       → ⊢ (x ∷ s) # e # f ↝ s' # e' # f'
 
 
 -- 2 + 3
-_ : ⊢ [] # [] ↝ [ intT ] # []
+_ : ⊢ [] # [] # [] ↝ [ intT ] # [] # []
 _ =
     ldc (int (+ 2))
  >> ldc (int (+ 3))
  >> add
 
 -- λx.x + 1
-inc : ⊢ [] # [ intT ] ↝ [ intT ] # []
+inc : ⊢ [] # (intT ∷ []) # (mkClosure intT intT [] ∷ []) ↝
+        ((intT ∷ []) # [] # []) -- ∀ {s e f} → ⊢ s # e # f ↝ (closureT intT intT e ∷ s) # e # f
 inc =
     ld zero
  >> ldc (int (+ 1))
@@ -100,41 +130,48 @@ inc =
  >> rtn
 
 -- Apply 2 to the above.
-_ : ⊢ [] # [] ↝ [ intT ] # []
+_ : ⊢ [] # [] # [] ↝ [ intT ] # _ # []
 _ =
     ldf inc
  >> ldc (int (+ 2))
  >> ap
 
 -- Partial application test.
-_ : ⊢ [] # [] ↝ [ intT ] # []
+_ : ⊢ [] # [] # [] ↝ [ intT ] # [] # []
 _ =
      ldf -- First, we construct the curried function.
-       ((ldf
-         (ld zero >> ld (suc zero) >> add >> rtn)) >> rtn)
+       (ldf
+         (ld zero >> ld (suc zero) >> add >> rtn) >> rtn)
   >> ldc (int (+ 1)) -- Load first argument.
-  >> ap              -- Apply function. Results in a closure.
+  >> ap              -- Apply to curried function. Results in a closure.
   >> ldc (int (+ 2)) -- Load second argument.
-  >> ap              -- Apply second argument to closure.
+  >> ap              -- Apply to closure.
 
 -- Shit getting real.
-foldl : ∀ {a b e} → ⊢ [] # [] ↝
+foldl : ∀ {a b e f} → ⊢ [] # [] # _ ↝
           [ closureT                          -- We construct a function,
               (closureT b (closureT a b e) e) -- which takes the folding function,
               (closureT b                     -- returning a function which takes acc,
                 (closureT (listT a)           -- returning a function which takes the list,
                   b                           -- and returns the acc.
-                  (b ∷ [ closureT b (closureT a b e) e ])) [ closureT b (closureT a b e) e ]) [] ] # []
-foldl = ldf ((ldf (ldf body >> rtn) >> rtn) >> rtn)
+                  (b ∷ [ closureT b (closureT a b e) e ])) [ closureT b (closureT a b e) e ]) [] ] # _ # f
+foldl = ldf (ldf (ldf body >> rtn) >> rtn)
   where
     body =
-         ld zero
-      >> nil?
-      >> if (ld (suc zero) >> rtn)
-          (ld (suc (suc zero))
-        >> ld (suc zero)
-        >> ap
-        >> ld zero
-        >> head
-        >> ap
-        >> {!!})
+         ld zero                   -- Load list.
+      >> nil?                      -- Is it empty?
+      >> if (ld (suc zero) >> rtn) -- If so, load & return acc.
+          (ld (suc (suc zero))     -- If not, load folding function.
+        >> ld (suc zero)           -- Load previous acc.
+        >> ap                      -- Partially apply folding function.
+        >> ld zero                 -- Load list.
+        >> head                    -- Get the first element.
+        >> ap                      -- Apply, yielding new acc.
+        >> ld (suc (suc zero))     -- Load the first argument to us, i.e. the folding function.
+        >> tc (suc (suc zero))     -- Partially-tail apply the folding function to us.
+        >> flip                    -- Flip resulting closure with our new acc.
+        >> ap                      -- Apply acc.
+        >> ld zero                 -- Load list.
+        >> tail                    -- Drop the first element we just processed.
+        >> ap                      -- Apply.
+        >> {!rtn!})
