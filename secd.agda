@@ -74,9 +74,10 @@ data ⊢_↝_ : State → State → Set where
        → ⊢ (x ∷ s) # e # f ↝ s # (x ∷ e) # f
   ap   : ∀ {s e e' f from to}
        → ⊢ (from ∷ closureT from to e' ∷ s) # e # f ↝ (to ∷ s) # e # f
-  tc   : ∀ {s e e' f from to}
+  tc   : ∀ {s e f}
        → (at : Fin (length f))
-       → ⊢ (mkFrom (lookup f at) ∷ s) # e # f ↝ (mkTo (lookup f at) ∷ s) # e # (mkClosure from to e' ∷ f)
+       → let cl = lookup f at in
+         ⊢ (mkFrom cl ∷ s) # e # f ↝ (mkTo cl ∷ s) # e # f
   rtn  : ∀ {s e e' a b f x}
        → ⊢ (b ∷ s) # e # (mkClosure a b e' ∷ f) ↝ [ x ] # [] # f
   nil  : ∀ {s e f a}
@@ -167,11 +168,11 @@ foldl = ldf (ldf (ldf body >> rtn) >> rtn)
         >> ld zero                 -- Load list.
         >> head                    -- Get the first element.
         >> ap                      -- Apply, yielding new acc.
-        >> ld (suc (suc zero))     -- Load the first argument to us, i.e. the folding function.
+        >> ld (suc (suc zero))     -- Load the folding function.
         >> tc (suc (suc zero))     -- Partially-tail apply the folding function to us.
         >> flip                    -- Flip resulting closure with our new acc.
-        >> ap                      -- Apply acc.
+        >> ap                      -- Apply acc, result in another closure.
         >> ld zero                 -- Load list.
         >> tail                    -- Drop the first element we just processed.
-        >> ap                      -- Apply.
-        >> {!rtn!})
+        >> ap                      -- Finally apply the last argument, that rest of the list.
+        >> rtn)                    -- Once that returns, just return the result.
