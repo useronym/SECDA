@@ -14,4 +14,4 @@ Work in progress.
 
 ### Further ideas of interest
 - Syntax & embedding to Agda of an untyped lambda calculus with syntactical translation to SECD instructions and proof of preservation of semantics by this translation, thus proving correctness (difficult?);
-- Compilation from our typed assembly to x86 / ARM assembly.
+- Compilation from our typed assembly to x86 / ARM assembly (translation from stack-based architecture to a register-based one likely to be difficult).
