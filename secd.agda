@@ -1,7 +1,7 @@
 module secd where
 
 open import Data.Fin using (Fin; zero; suc)
-open import Data.List using (List; []; [_]; _∷_; length; lookup)
+open import Data.List using (List; []; [_]; _∷_; map; length; lookup)
 open import Data.Integer using (ℤ; +_)
 
 
@@ -78,8 +78,8 @@ data ⊢_↝_ : State → State → Set where
        → (at : Fin (length f))
        → let cl = lookup f at in
          ⊢ (mkFrom cl ∷ s) # e # f ↝ (mkTo cl ∷ s) # e # f
-  rtn  : ∀ {s e e' a b f x}
-       → ⊢ (b ∷ s) # e # (mkClosure a b e' ∷ f) ↝ [ x ] # [] # f
+  rtn  : ∀ {s e e' a b f}
+       → ⊢ (b ∷ s) # e # (mkClosure a b e' ∷ f) ↝ [ b ] # [] # f
   nil  : ∀ {s e f a}
        → ⊢ s # e # f ↝ (listT a ∷ s) # e # f
   ldc  : ∀ {s e f}
@@ -108,10 +108,10 @@ data ⊢_↝_ : State → State → Set where
        → ⊢ (listT a ∷ s) # e # f ↝ (boolT ∷ s) # e # f
   not  : ∀ {s e f}
        → ⊢ (boolT ∷ s) # e # f ↝ (boolT ∷ s) # e # f
-  if   : ∀ {s s' e e' f f' x}
+  if   : ∀ {s s' e e' f f'}
        → ⊢ s # e # f ↝ s' # e' # f'
        → ⊢ s # e # f ↝ s' # e' # f'
-       → ⊢ (x ∷ s) # e # f ↝ s' # e' # f'
+       → ⊢ (boolT ∷ s) # e # f ↝ s' # e' # f'
 
 
 -- 2 + 3
@@ -122,8 +122,7 @@ _ =
  >> add
 
 -- λx.x + 1
-inc : ⊢ [] # (intT ∷ []) # (mkClosure intT intT [] ∷ []) ↝
-        ((intT ∷ []) # [] # []) -- ∀ {s e f} → ⊢ s # e # f ↝ (closureT intT intT e ∷ s) # e # f
+inc : ∀ {e f} → ⊢ [] # (intT ∷ e) # (mkClosure intT intT [] ∷ f) ↝ [ intT ] # [] # f
 inc =
     ld zero
  >> ldc (int (+ 1))
@@ -148,14 +147,30 @@ _ =
   >> ldc (int (+ 2)) -- Load second argument.
   >> ap              -- Apply to closure.
 
+withEnv : Env → Type → Type
+withEnv e intT          = intT
+withEnv e boolT         = boolT
+withEnv e (pairT t₁ t₂) = pairT (withEnv e t₁) (withEnv e t₂)
+withEnv e (funT a b)    = let aWithE = (withEnv e a) in closureT aWithE (withEnv (aWithE ∷ e) b) e
+withEnv e (envT x)      = envT x
+withEnv e (listT t)     = listT (withEnv e t)
+
+_⇒_ : Type → Type → Type
+_⇒_ = funT
+infixr 15 _⇒_
+
 -- Shit getting real.
-foldl : ∀ {a b e f} → ⊢ [] # [] # _ ↝
-          [ closureT                          -- We construct a function,
-              (closureT b (closureT a b e) e) -- which takes the folding function,
-              (closureT b                     -- returning a function which takes acc,
-                (closureT (listT a)           -- returning a function which takes the list,
-                  b                           -- and returns the acc.
-                  (b ∷ [ closureT b (closureT a b e) e ])) [ closureT b (closureT a b e) e ]) [] ] # _ # f
+foldl : ∀ {a b e f} → ⊢ [] # e # f ↝
+          [ withEnv e ((b ⇒ a ⇒ b) ⇒ b ⇒ (listT a) ⇒ b)
+--          closureT                            -- We construct a function,
+--              (closureT b (closureT a b e) e) -- which takes the folding function,
+--              (closureT b                     -- returning a function which takes acc,
+--                (closureT (listT a)           -- returning a function which takes the list,
+--                  b                           -- and returns the acc.
+--                  (b ∷ (closureT b (closureT a b e) e) ∷ e))
+--                ((closureT b (closureT a b e) e) ∷ e ))
+--              e
+          ] # e # f
 foldl = ldf (ldf (ldf body >> rtn) >> rtn)
   where
     body =
@@ -171,8 +186,12 @@ foldl = ldf (ldf (ldf body >> rtn) >> rtn)
         >> ld (suc (suc zero))     -- Load the folding function.
         >> tc (suc (suc zero))     -- Partially-tail apply the folding function to us.
         >> flip                    -- Flip resulting closure with our new acc.
-        >> ap                      -- Apply acc, result in another closure.
-        >> ld zero                 -- Load list.
-        >> tail                    -- Drop the first element we just processed.
-        >> ap                      -- Finally apply the last argument, that rest of the list.
-        >> rtn)                    -- Once that returns, just return the result.
+        >> ?)
+--        >> ap                      -- Apply acc, result in another closure.
+--        >> ld zero                 -- Load list.
+--        >> tail                    -- Drop the first element we just processed.
+--        >> ap                      -- Finally apply the last argument, that rest of the list.
+--        >> rtn)                    -- Once that returns, just return the result.
+
+--foldl' : ∀ {s e e' f a b} → ⊢ s # (inEnv e (a ⇒ b ⇒ b) ∷ e') # ({!!} ∷ f) ↝ [ inEnv (inEnv e (a ⇒ b ⇒ b) ∷ e') (b ⇒ (listT a) ⇒ b) ] # [] # f
+--foldl' = ldf {!ldf ?!} >> rtn
