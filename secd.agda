@@ -19,12 +19,13 @@ mutual
     intT boolT : Type
     pairT : Type → Type → Type
     funT : Type → Type → Type
+    closureT : Type → Type → Env → Type
     envT : Env → Type
     listT : Type → Type
 
 -- Closure is a function together with a context.
-closureT : Type → Type → Env → Type
-closureT a b env = pairT (funT a b) (envT env)
+--closureT : Type → Type → Env → Type
+--closureT a b env = pairT (funT a b) (envT env)
 
 -- Assignment of types to constants.
 typeof : Const → Type
@@ -148,29 +149,38 @@ _ =
   >> ap              -- Apply to closure.
 
 withEnv : Env → Type → Type
-withEnv e intT          = intT
-withEnv e boolT         = boolT
-withEnv e (pairT t₁ t₂) = pairT (withEnv e t₁) (withEnv e t₂)
-withEnv e (funT a b)    = let aWithE = (withEnv e a) in closureT aWithE (withEnv (aWithE ∷ e) b) e
-withEnv e (envT x)      = envT x
-withEnv e (listT t)     = listT (withEnv e t)
+withEnv e (pairT t u)       = pairT (withEnv e t) (withEnv e u)
+withEnv e (funT a b)        = let aWithE = (withEnv e a) in closureT aWithE (withEnv (aWithE ∷ e) b) e
+withEnv e (listT t)         = listT (withEnv e t)
+withEnv e intT              = intT
+withEnv e boolT             = boolT
+withEnv e (closureT a b e') = closureT a b e'
+withEnv e (envT x)          = envT x
 
 _⇒_ : Type → Type → Type
 _⇒_ = funT
 infixr 15 _⇒_
 
+-- λa.λb.a+b
+-- withEnv test. Below is what withEnv desugars to.
+-- plus : ∀ {e f} → ⊢ [] # e # f ↝ [ closureT intT (closureT intT intT (intT ∷ e)) e ] # e # f
+plus : ∀ {s e f} → ⊢ s # e # f ↝ (withEnv e (intT ⇒ intT ⇒ intT) ∷ s) # e # f
+plus = ldf (ldf (ld zero >> ld (suc zero) >> add >> rtn) >> rtn)
+
 -- Shit getting real.
-foldl : ∀ {a b e f} → ⊢ [] # e # f ↝
-          [ withEnv e ((b ⇒ a ⇒ b) ⇒ b ⇒ (listT a) ⇒ b)
---          closureT                            -- We construct a function,
---              (closureT b (closureT a b e) e) -- which takes the folding function,
---              (closureT b                     -- returning a function which takes acc,
---                (closureT (listT a)           -- returning a function which takes the list,
---                  b                           -- and returns the acc.
---                  (b ∷ (closureT b (closureT a b e) e) ∷ e))
---                ((closureT b (closureT a b e) e) ∷ e ))
---              e
-          ] # e # f
+foldl : ∀ {e f} → ⊢ [] # e # f ↝ [ withEnv e ((intT ⇒ intT ⇒ intT) ⇒ intT ⇒ (listT intT) ⇒ intT) ] # e # f
+-- Below is the Agda-polymorphic version which does not typecheck. Something to do with how `withEnv e b` does not normalize further.
+-- foldl : ∀ {a b e f} → ⊢ [] # e # f ↝ [ withEnv e ((b ⇒ a ⇒ b) ⇒ b ⇒ (listT a) ⇒ b)] # e # f
+-- Explicitly typing out the polymorhic version, however, works:
+--         closureT                            -- We construct a function,
+--             (closureT b (closureT a b (b ∷ e)) e) -- which takes the folding function,
+--             (closureT b                     -- returning a function which takes acc,
+--               (closureT (listT a)           -- returning a function which takes the list,
+--                 b                           -- and returns the acc.
+--                 (b ∷ (closureT b (closureT a b (b ∷ e)) e) ∷ e))
+--               ((closureT b (closureT a b (b ∷ e)) e) ∷ e))
+--             e
+-- TODO: figure out what's going on here if has time.
 foldl = ldf (ldf (ldf body >> rtn) >> rtn)
   where
     body =
@@ -186,12 +196,8 @@ foldl = ldf (ldf (ldf body >> rtn) >> rtn)
         >> ld (suc (suc zero))     -- Load the folding function.
         >> tc (suc (suc zero))     -- Partially-tail apply the folding function to us.
         >> flip                    -- Flip resulting closure with our new acc.
-        >> ?)
---        >> ap                      -- Apply acc, result in another closure.
---        >> ld zero                 -- Load list.
---        >> tail                    -- Drop the first element we just processed.
---        >> ap                      -- Finally apply the last argument, that rest of the list.
---        >> rtn)                    -- Once that returns, just return the result.
-
---foldl' : ∀ {s e e' f a b} → ⊢ s # (inEnv e (a ⇒ b ⇒ b) ∷ e') # ({!!} ∷ f) ↝ [ inEnv (inEnv e (a ⇒ b ⇒ b) ∷ e') (b ⇒ (listT a) ⇒ b) ] # [] # f
---foldl' = ldf {!ldf ?!} >> rtn
+        >> ap                      -- Apply acc, result in another closure.
+        >> ld zero                 -- Load list.
+        >> tail                    -- Drop the first element we just processed.
+        >> ap                      -- Finally apply the last argument, that rest of the list.
+        >> rtn)                    -- Once that returns, just return the result.
