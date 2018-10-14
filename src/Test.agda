@@ -37,19 +37,6 @@ _ =
   >> ldc (int (+ 2)) -- Load second argument.
   >> ap              -- Apply to closure.
 
-withEnv : Env → Type → Type
-withEnv e (pairT t u)       = pairT (withEnv e t) (withEnv e u)
-withEnv e (funT a b)        = let aWithE = (withEnv e a) in closureT aWithE (withEnv (aWithE ∷ e) b) e
-withEnv e (listT t)         = listT (withEnv e t)
-withEnv e intT              = intT
-withEnv e boolT             = boolT
-withEnv e (closureT a b e') = closureT a b e'
-withEnv e (envT x)          = envT x
-
-_⇒_ : Type → Type → Type
-_⇒_ = funT
-infixr 15 _⇒_
-
 -- λa.λb.a+b
 -- withEnv test. Below is what withEnv desugars to.
 -- plus : ∀ {e f} → ⊢ [] # e # f ↝ [ closureT intT (closureT intT intT (intT ∷ e)) e ] # e # f

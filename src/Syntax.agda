@@ -21,6 +21,10 @@ mutual
     envT : Env → Type
     listT : Type → Type
 
+_⇒_ : Type → Type → Type
+_⇒_ = funT
+infixr 15 _⇒_
+
 -- Closure is a function together with a context.
 --closureT : Type → Type → Env → Type
 --closureT a b env = pairT (funT a b) (envT env)
@@ -111,3 +115,14 @@ data ⊢_↝_ : State → State → Set where
        → ⊢ s # e # f ↝ s' # e' # f'
        → ⊢ s # e # f ↝ s' # e' # f'
        → ⊢ (boolT ∷ s) # e # f ↝ s' # e' # f'
+
+-- This syntactic sugar makes writing out SECD types easier.
+-- Doesn't play nice with Agda polymorphism?
+withEnv : Env → Type → Type
+withEnv e (pairT t u)       = pairT (withEnv e t) (withEnv e u)
+withEnv e (funT a b)        = let aWithE = (withEnv e a) in closureT aWithE (withEnv (aWithE ∷ e) b) e
+withEnv e (listT t)         = listT (withEnv e t)
+withEnv e intT              = intT
+withEnv e boolT             = boolT
+withEnv e (closureT a b e') = closureT a b e'
+withEnv e (envT x)          = envT x
