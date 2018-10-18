@@ -9,7 +9,7 @@ _ : ⊢ [] # [] # [] ↝ [ intT ] # [] # []
 _ =
     ldc (int (+ 2))
  >> ldc (int (+ 3))
- >> add >> ∅
+ >| add
 
 -- λx.x + 1
 inc : ∀ {e f} → ⊢ [] # (intT ∷ e) # (mkClosure intT intT [] ∷ f) ↝ [ intT ] # [] # f
@@ -17,7 +17,7 @@ inc =
     ld zero
  >> ldc (int (+ 1))
  >> add
- >> rtn
+ >| rtn
 
 -- Apply 2 to the above.
 _ : ⊢ [] # [] # [] ↝ [ intT ] # _ # []

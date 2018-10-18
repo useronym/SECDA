@@ -89,7 +89,7 @@ mutual
     ld   : ∀ {s e f}
          → (at : Fin (length e))
          → ⊢ s # e # f ⊳ (lookup e at ∷ s) # e # f
-    flip : ∀ {s e f a b}
+    flp  : ∀ {s e f a b}
          → ⊢ (a ∷ b ∷ s) # e # f ⊳ (b ∷ a ∷ s) # e # f
     cons : ∀ {s e f a}
          → ⊢ (a ∷ listT a ∷ s) # e # f ⊳ (listT a ∷ s) # e # f
