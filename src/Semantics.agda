@@ -9,12 +9,20 @@ mutual
   ⟦ [] ⟧ᵉ     = ⊤
   ⟦ x ∷ xs ⟧ᵉ = ⟦ x ⟧ᵗ × ⟦ xs ⟧ᵉ
 
+  record Closure {a b : Type} {e : Env} : Set where
+    inductive
+    constructor ⟦_⟧ᶠ×⟦_⟧ᵉ
+    field
+      {f} : FunDump
+      ⟦f⟧ᶠ : ⊢ [] # (a ∷ e) # (mkClosureT a b e ∷ f) ↝ [ b ] # [] # f
+      ⟦e⟧ᵉ : ⟦ e ⟧ᵉ
+
   ⟦_⟧ᵗ : Type → Set
   ⟦ intT ⟧ᵗ           = ℤ
   ⟦ boolT ⟧ᵗ          = Bool
   ⟦ pairT t₁ t₂ ⟧ᵗ    = ⟦ t₁ ⟧ᵗ × ⟦ t₂ ⟧ᵗ
   ⟦ funT a b ⟧ᵗ       = ⊤
-  ⟦ closureT a b e ⟧ᵗ = ∃[ f ] (⊢ [] # (a ∷ e) # (mkClosure a b e ∷ f) ↝ [ b ] # [] # f)
+  ⟦ closureT a b e ⟧ᵗ = Closure {a} {b} {e = e}
   ⟦ envT e ⟧ᵗ         = ⟦ e ⟧ᵉ
   ⟦ listT t ⟧ᵗ        = List ⟦ t ⟧ᵗ
 
@@ -24,13 +32,13 @@ mutual
 
 
 run : ∀ {s s' e e' f f'} → ⟦ s ⟧ˢ → ⟦ e ⟧ᵉ → ⊢ s # e # f ↝ s' # e' # f'
-                          → Delay ⟦ s' ⟧ˢ ∞
+                         → Delay ⟦ s' ⟧ˢ ∞
 run s e ∅        = now s
-run {f = f} s e (ldf x >> r) = run ((f , x) , s) e r
+run s e (ldf f >> r) = run (⟦ f ⟧ᶠ×⟦ e ⟧ᵉ , s) e r
 run s e (lett >> r) = {!!}
-run (from , (_ , cl) , s) e (ap >> r) = later λ where .force → later λ where .force → bind (run tt {!!} cl) λ s' → run (proj₁ s' , s) e r
+run (from , ⟦ f ⟧ᶠ×⟦ fE ⟧ᵉ , s) e (ap >> r) = later λ where .force → later λ where .force → bind (run tt {!from , fE!} f) λ s' → run (proj₁ s' , s) e r
 run s e (tc at >> r) = {!!}
-run s e (rtn >> r) = {!!}
+run s e (rtn >> r) = {!now !}
 run s e (nil >> r) = {!!}
 run s e (ldc const >> r) = {!!}
 run s e (ld at >> r) = {!!}

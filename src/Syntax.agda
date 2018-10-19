@@ -24,10 +24,6 @@ _⇒_ : Type → Type → Type
 _⇒_ = funT
 infixr 15 _⇒_
 
--- Closure is a function together with a context.
---closureT : Type → Type → Env → Type
---closureT a b env = pairT (funT a b) (envT env)
-
 -- Assignment of types to constants.
 typeof : Const → Type
 typeof true    = boolT
@@ -38,19 +34,19 @@ typeof (int x) = intT
 Stack = List Type
 
 -- Special kind of closure we use to allow recursive calls.
-data Closure : Set where
-  mkClosure : Type → Type → Env → Closure
+data ClosureT : Set where
+  mkClosureT : Type → Type → Env → ClosureT
 
 -- Boilerplate.
-mkFrom : Closure → Type
-mkFrom (mkClosure from _ _) = from
-mkTo : Closure → Type
-mkTo (mkClosure _ to _) = to
-mkEnv : Closure → Env
-mkEnv (mkClosure _ _ env) = env
+mkFrom : ClosureT → Type
+mkFrom (mkClosureT from _ _) = from
+mkTo : ClosureT → Type
+mkTo (mkClosureT _ to _) = to
+mkEnv : ClosureT → Env
+mkEnv (mkClosureT _ _ env) = env
 
 -- This is pretty much the call stack, allowing us to make recursive calls.
-FunDump = List Closure
+FunDump = List ClosureT
 
 -- A state of our machine.
 record State : Set where
@@ -69,7 +65,7 @@ mutual
 
   data ⊢_⊳_ : State → State → Set where
     ldf  : ∀ {s e f from to}
-         → (⊢ [] # (from ∷ e) # (mkClosure from to e ∷ f) ↝ [ to ] # [] # f)
+         → (⊢ [] # (from ∷ e) # (mkClosureT from to e ∷ f) ↝ [ to ] # [] # f)
          → ⊢ s # e # f ⊳ (closureT from to e ∷ s) # e # f
     lett : ∀ {s e f x}
          → ⊢ (x ∷ s) # e # f ⊳ s # (x ∷ e) # f
@@ -80,7 +76,7 @@ mutual
          → let cl = lookup f at in
            ⊢ (mkFrom cl ∷ s) # e # f ⊳ (mkTo cl ∷ s) # e # f
     rtn  : ∀ {s e e' a b f}
-         → ⊢ (b ∷ s) # e # (mkClosure a b e' ∷ f) ⊳ [ b ] # [] # f
+         → ⊢ (b ∷ s) # e # (mkClosureT a b e' ∷ f) ⊳ [ b ] # [] # f
     nil  : ∀ {s e f a}
          → ⊢ s # e # f ⊳ (listT a ∷ s) # e # f
     ldc  : ∀ {s e f}
