@@ -10,7 +10,13 @@ open import Data.Product using (_×_; _,_; proj₁; proj₂; Σ; ∃; ∃-syntax
 open import Data.List using (List; []; [_]; _∷_; map; length; lookup) public
 open import Size public
 open import Codata.Thunk using (force) public
-open import Codata.Delay using (Delay; now; later; bind) public
+open import Codata.Delay using (Delay; now; later) renaming (bind to _>>=_) public
+--open import Category.Monad
+--open RawMonad using (return; _>>=_)
+--open import Codata.Delay.Categorical
+--open Sequential using (monad)
+--import Level
+--open RawMonad {f = Level.zero} monad using (return; _>>=_) public
 
 
 data Path {A : Set} (R : A → A → Set) : A → A → Set where

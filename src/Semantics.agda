@@ -31,12 +31,18 @@ mutual
 ⟦ x ∷ xs ⟧ˢ = ⟦ x ⟧ᵗ × ⟦ xs ⟧ˢ
 
 
-run : ∀ {s s' e e' f f'} → ⟦ s ⟧ˢ → ⟦ e ⟧ᵉ → ⊢ s # e # f ↝ s' # e' # f'
-                         → Delay ⟦ s' ⟧ˢ ∞
+run : ∀ {s s' e e' f f' i} → ⟦ s ⟧ˢ → ⟦ e ⟧ᵉ → ⊢ s # e # f ↝ s' # e' # f'
+                         → Delay ⟦ s' ⟧ˢ i
 run s e ∅        = now s
 run s e (ldf f >> r) = run (⟦ f ⟧ᶠ×⟦ e ⟧ᵉ , s) e r
 run s e (lett >> r) = {!!}
-run (from , ⟦ f ⟧ᶠ×⟦ fE ⟧ᵉ , s) e (ap >> r) = later λ where .force → later λ where .force → bind (run tt {!from , fE!} f) λ s' → run (proj₁ s' , s) e r
+run (from , ⟦ f ⟧ᶠ×⟦ fE ⟧ᵉ , s) e (ap >> r) =
+  later
+    λ where
+      .force →
+        do
+          (to , _) ← (run tt (from , fE) f)
+          run (to , s) e r
 run s e (tc at >> r) = {!!}
 run s e (rtn >> r) = {!now !}
 run s e (nil >> r) = {!!}

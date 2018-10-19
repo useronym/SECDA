@@ -1,3 +1,4 @@
+-- if instruction / closure type & environment
 15:51:17 	<pgiarrusso>	akr: this reminds me of the constraints from the JVM bytecode verifier about if: I think they’re similar, except for subtyping
 15:51:46 	<pgiarrusso>	akr: I can think of many works on typed compilation with tricky issues
 15:51:58 	<pgiarrusso>	E.g. typing closure conversion requires existentials
@@ -14,3 +15,10 @@
 16:14:38 	<pgiarrusso>	back to if and thunks: you can also implement what you need directly.
 16:15:02 	<pgiarrusso>	BTW, it seems you’re writing an if statement. I’d expect you want an if expression instead?
 16:15:39 	<pgiarrusso>	akr: `if: bool -> (() -> T) -> (() -> T) -> T`
+
+-- coinduction sizes
+20:53:28 	<{AS}>	So quantify over all sizes I
+20:53:35 	<{AS}>	sizes i
+20:53:53 	<{AS}>	Then it can see the size can get smaller when you delay
+20:54:45 	<{AS}>	It can’t show that inf is smaller than j
+20:54:32 	<{AS}>	I just saw it now because I didn’t type check it
